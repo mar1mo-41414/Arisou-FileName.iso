@@ -46,3 +46,23 @@ test('set respects character and 8.3 constraints, and reports impossible conditi
   assert.throws(() => run({ extMode: 'set', extensionSet: ['png'], chars: ['number'] }), /条件に合う/);
   assert.throws(() => run({ extMode: 'set', extensionSet: ['tiff'], dos: true }), /条件に合う/);
 });
+
+test('extension set file picker accepts each supported file suffix', () => {
+  const { readFileSync } = require('node:fs');
+  const { join } = require('node:path');
+  const html = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
+  const input = html.match(/<input\b[^>]*id="extension-file"[^>]*>/);
+  assert.ok(input, 'extension file input exists');
+  const accept = input[0].match(/\baccept="([^"]+)"/);
+  assert.ok(accept, 'file picker has an accept list');
+  const types = accept[1].split(',').map(type => type.trim());
+  for (const suffix of ['.txt', '.list', '.dic', '.dict', '.dicts']) assert.ok(types.includes(suffix), `${suffix} is accepted`);
+});
+
+test('each supported suffix is read as the same UTF-8 extension set', async () => {
+  const { parseExtensionSet } = require('../generator');
+  for (const suffix of ['txt', 'list', 'dic', 'dict', 'dicts']) {
+    const file = new File(['jpg\n.png\n'], `extensions.${suffix}`);
+    assert.deepEqual(parseExtensionSet(await file.text()), ['jpg', 'png']);
+  }
+});

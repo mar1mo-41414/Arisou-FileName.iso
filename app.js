@@ -75,7 +75,7 @@ $('#extension-file').addEventListener('change', async event => {
   extensionSet = null;
   extensionSetError = '';
   extensionSetLoading = !!file;
-  $('#set-status').textContent = file ? '読み込み中…' : '1行に1つずつ拡張子を書いたファイルを選んでください。';
+  $('#set-status').textContent = file ? '読み込み中…' : '1行に1つずつ拡張子を書いたファイル（.txt / .list / .dic / .dict / .dicts）を選んでください。';
   if (!file) return;
   try {
     const text = await file.text();
