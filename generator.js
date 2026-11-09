@@ -16,6 +16,20 @@
   const pools = { lower: 'abcdefghijklmnopqrstuvwxyz', upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', number: '0123456789', symbol: '_-' };
   const choose = (items, random) => items[Math.floor(random() * items.length)];
   const integer = (min, max, random) => min + Math.floor(random() * (max - min + 1));
+  function parseExtensionSet(text) {
+    const result = [];
+    String(text).split(/\r\n|\n|\r/).forEach((line, index) => {
+      const value = line.trim().replace(/^\./, '');
+      if (!value) {
+        if (line.trim()) throw new Error(`${index + 1}行目に拡張子がありません。`);
+        return;
+      }
+      if (/[.\s/\\]/.test(value)) throw new Error(`${index + 1}行目の拡張子にドット・空白・スラッシュは使えません。`);
+      result.push(value);
+    });
+    if (!result.length) throw new Error('拡張子セットが空です。1行に1つずつ拡張子を書いてください。');
+    return result;
+  }
   function generate(options, random = Math.random) {
     const { category, chars, extMode, fixedExt, dos, tilde, count } = options;
     if (!(category === 'all' || categories[category])) throw new Error('ファイルの種類を選んでください。');
@@ -26,7 +40,7 @@
     };
     bounds(options.nameMin, options.nameMax, 32, 'ファイル名');
     if (extMode !== 'fixed') bounds(options.extMin, options.extMax, 10, '拡張子');
-    if (!['fixed', 'category', 'random'].includes(extMode)) throw new Error('拡張子の選び方を選んでください。');
+    if (!['fixed', 'category', 'random', 'set'].includes(extMode)) throw new Error('拡張子の選び方を選んでください。');
     const nameMax = Math.min(options.nameMax, dos ? 8 : 32);
     const extMax = Math.min(options.extMax, dos ? 3 : 10);
     const nameMin = Math.max(options.nameMin, tilde ? 2 : 1);
@@ -53,6 +67,13 @@
       return e;
     }).filter(e => e.length >= options.extMin && e.length <= extMax && [...e].every(allowed));
     if (extMode === 'category' && !extensions.length) throw new Error('条件に合う拡張子がありません。文字種・文字数またはファイルの種類を変更してください。');
+    let setExtensions = [];
+    if (extMode === 'set') {
+      if (!Array.isArray(options.extensionSet) || !options.extensionSet.length) throw new Error('拡張子セットのファイルを選んでください。');
+      setExtensions = options.extensionSet.map(e => dos ? e.toUpperCase() : e)
+        .filter(e => e.length >= options.extMin && e.length <= extMax && [...e].every(allowed));
+      if (!setExtensions.length) throw new Error('セットに条件に合う拡張子がありません。文字種・文字数または8.3形式を変更してください。');
+    }
     function randomString(length) { return Array.from({ length }, () => choose(pool, random)).join(''); }
     function makeName() {
       const length = integer(nameMin, nameMax, random);
@@ -66,9 +87,9 @@
       return body + (tilde ? '~1' : '');
     }
     return Array.from({ length: count }, () => {
-      const ext = extMode === 'fixed' ? fixed : extMode === 'category' ? choose(extensions, random) : randomString(integer(options.extMin, extMax, random));
+      const ext = extMode === 'fixed' ? fixed : extMode === 'category' ? choose(extensions, random) : extMode === 'set' ? choose(setExtensions, random) : randomString(integer(options.extMin, extMax, random));
       return `${makeName()}.${ext}`;
     });
   }
-  return { generate, categories };
+  return { generate, parseExtensionSet, categories };
 });
