@@ -26,3 +26,23 @@ test('invalid or impossible conditions report errors', () => {
   assert.throws(() => run({ tilde: true, nameMin: 1, nameMax: 1 }));
   assert.throws(() => run({ extMode: 'fixed', fixedExt: '' }));
 });
+
+test('parse extension set with BOM, CRLF, optional dot, whitespace and duplicates', () => {
+  const { parseExtensionSet } = require('../generator');
+  assert.deepEqual(parseExtensionSet('\uFEFF.jpg\r\n png \r\n\r\njpg\rWEBP\n'), ['jpg', 'png', 'jpg', 'WEBP']);
+  assert.throws(() => parseExtensionSet(' \n\n'), /空/);
+  assert.throws(() => parseExtensionSet('jpg\nfoo.bar'), /2行目/);
+  assert.throws(() => parseExtensionSet('jpg\n.'), /2行目/);
+});
+test('set extensions are selected from matching entries', () => {
+  const settings = { ...defaults, extMode: 'set', extensionSet: ['jpg', 'png', 'tiff'], count: 1 };
+  assert.match(generate(settings, () => 0)[0], /\.jpg$/);
+  assert.match(generate(settings, () => 0.999)[0], /\.tiff$/);
+  for (const filename of run({ extMode: 'set', extensionSet: ['jpg', 'png', 'tiff'], extMin: 3, extMax: 3 })) assert.match(filename, /\.(jpg|png)$/);
+});
+test('set respects character and 8.3 constraints, and reports impossible conditions', () => {
+  for (const filename of run({ extMode: 'set', extensionSet: ['jpg', 'tiff', 'png'], dos: true, chars: ['lower'] })) assert.match(filename, /\.(JPG|PNG)$/);
+  assert.throws(() => run({ extMode: 'set', extensionSet: [] }), /ファイル/);
+  assert.throws(() => run({ extMode: 'set', extensionSet: ['png'], chars: ['number'] }), /条件に合う/);
+  assert.throws(() => run({ extMode: 'set', extensionSet: ['tiff'], dos: true }), /条件に合う/);
+});

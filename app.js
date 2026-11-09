@@ -4,6 +4,10 @@ const form = $('#generator-form');
 const list = $('#result-list');
 let filenames = [];
 let toastTimer;
+let extensionSet = null;
+let extensionSetError = '';
+let extensionSetLoading = false;
+let fileReadVersion = 0;
 function toast(message) {
   const el = $('#toast');
   el.textContent = message;
@@ -41,12 +45,15 @@ function render() {
 }
 function generate() {
   try {
+    const mode = document.querySelector('input[name="ext-mode"]:checked').value;
+    if (mode === 'set' && extensionSetLoading) throw new Error('拡張子セットを読み込み中です。');
+    if (mode === 'set' && extensionSetError) throw new Error(extensionSetError);
     const values = {
       category: $('#category').value,
       chars: [...document.querySelectorAll('input[name="chars"]:checked')].map(el => el.value),
       nameMin: Number($('#name-min').value), nameMax: Number($('#name-max').value),
       extMin: Number($('#ext-min').value), extMax: Number($('#ext-max').value),
-      extMode: document.querySelector('input[name="ext-mode"]:checked').value,
+      extMode: mode, extensionSet,
       fixedExt: $('#fixed-ext').value, dos: $('#dos').checked, tilde: $('#tilde').checked,
       count: Number($('#count').value)
     };
@@ -58,8 +65,30 @@ form.addEventListener('submit', event => { event.preventDefault(); generate(); }
 document.querySelectorAll('input[name="ext-mode"]').forEach(input => input.addEventListener('change', () => {
   const mode = document.querySelector('input[name="ext-mode"]:checked').value;
   $('#fixed-wrap').hidden = mode !== 'fixed';
+  $('#set-wrap').hidden = mode !== 'set';
   $('#ext-min').disabled = $('#ext-max').disabled = mode === 'fixed';
-  $('#ext-hint').textContent = mode === 'fixed' ? '入力した拡張子をそのまま使用します（8.3形式では大文字・3文字以内）。文字種・文字数の設定は適用されません。' : mode === 'random' ? '選んだ文字と文字数で、存在しない拡張子も作ります。' : '種類に合う拡張子から、文字数と文字種に合うものを選びます。';
+  $('#ext-hint').textContent = mode === 'fixed' ? '入力した拡張子をそのまま使用します（8.3形式では大文字・3文字以内）。文字種・文字数の設定は適用されません。' : mode === 'random' ? '選んだ文字と文字数で、存在しない拡張子も作ります。' : mode === 'set' ? 'セットの中から文字種・文字数に合うものを選びます。8.3形式では大文字に変換します。' : '種類に合う拡張子から、文字数と文字種に合うものを選びます。';
 }));
+$('#extension-file').addEventListener('change', async event => {
+  const version = ++fileReadVersion;
+  const file = event.target.files[0];
+  extensionSet = null;
+  extensionSetError = '';
+  extensionSetLoading = !!file;
+  $('#set-status').textContent = file ? '読み込み中…' : '1行に1つずつ拡張子を書いたファイルを選んでください。';
+  if (!file) return;
+  try {
+    const text = await file.text();
+    if (version !== fileReadVersion) return;
+    extensionSet = Arisou.parseExtensionSet(text);
+    $('#set-status').textContent = `${file.name}：${extensionSet.length}件を読み込みました。`;
+  } catch (error) {
+    if (version !== fileReadVersion) return;
+    extensionSetError = error.message || 'ファイルを読み込めませんでした。';
+    $('#set-status').textContent = extensionSetError;
+  } finally {
+    if (version === fileReadVersion) extensionSetLoading = false;
+  }
+});
 $('#copy-all').addEventListener('click', () => copy(filenames.join('\n')));
 generate();
